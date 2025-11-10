@@ -3,41 +3,43 @@
 from .core.logic_engine import LogicEngine
 from .tools.abstraction_layer import ToolAbstractionLayer
 from .tools.file_system_manager import FileSystemManager
+from .tools.git_client import GitClient
+from .tools.huggingface_client import HuggingFaceClient
 from .core.state_manager import StateManager
+import os
 
 def main():
     """
     Main function for the Jules for Hugging Face application.
     """
     print("Jules for Hugging Face - Initializing...")
-    engine = LogicEngine()
     tool_layer = ToolAbstractionLayer()
     state_manager = StateManager()
 
-    # Register the FileSystemManager tool
-    tool_layer.register_tool("file_system_manager.create_file", FileSystemManager)
+    # Register tools
+    tool_layer.register_tool("huggingface_client", HuggingFaceClient)
 
-    # Get the current task from the state manager
-    current_task = state_manager.get_current_task()
-    print(f"Current Task from State: {current_task}")
+    # --- Login to Hugging Face ---
+    print("--- Logging in to Hugging Face ---")
+    hf_token = os.getenv("HUGGING_FACE_TOKEN")
+    if not hf_token:
+        print("Error: HUGGING_FACE_TOKEN environment variable not set.")
+        return
+
+    login_params = {"operation": "login", "token": hf_token}
+    login_result = tool_layer.execute_tool("huggingface_client", login_params)
+    print(f"Login Result: {login_result}")
+    state_manager.update_state("I-2.2.1", "In Progress", f"Hugging Face login: {login_result}")
 
 
-    user_input = "Please create a file named new_file.txt"
-    state_manager.update_state("I-1.3.1", "In Progress", f"Processing user input: {user_input}")
-    next_action = engine.get_next_action(user_input)
-    print(f"User Input: '{user_input}'")
-    print(f"Next Action: {next_action}")
+    # --- Create a new repository ---
+    print("\n--- Creating a new repository on the Hub ---")
+    repo_id = "jules-test-repo-123" # A unique name for the test repo
+    create_repo_params = {"operation": "create_repo", "repo_id": repo_id}
+    create_repo_result = tool_layer.execute_tool("huggingface_client", create_repo_params)
+    print(f"Create Repo Result: {create_repo_result}")
+    state_manager.update_state("I-2.2.1", "Completed", f"Repo creation: {create_repo_result}")
 
-    # This is a simplified parsing of the "next_action" string.
-    if next_action.startswith("execute_tool"):
-        # Simplified parsing for demonstration purposes
-        tool_name = "file_system_manager.create_file"
-        params = {'file_path': 'new_file.txt'}
-        result = tool_layer.execute_tool(tool_name, params)
-        print(f"Tool Execution Result: {result}")
-        state_manager.update_state("I-1.3.1", "Completed", f"Tool executed successfully: {result}")
-
-    print(f"Current Task from State: {state_manager.get_current_task()}")
 
 if __name__ == "__main__":
     main()
