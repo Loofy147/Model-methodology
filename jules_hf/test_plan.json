@@ -1,0 +1,28 @@
+{
+    "project_name": "Test Project",
+    "epics": [
+        {
+            "id": "Test-Epic-1",
+            "status": "Completed"
+        },
+        {
+            "id": "Test-Epic-2",
+            "status": "In Progress",
+            "milestones": [
+                {
+                    "id": "Test-Milestone-1",
+                    "status": "In Progress",
+                    "features": [
+                        {
+                            "id": "Test-Feature-1",
+                            "tasks": [
+                                { "id": "T-1", "title": "First Task", "status": "Done" },
+                                { "id": "T-2", "title": "Current Task", "status": "Ready" }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
