@@ -1,45 +1,66 @@
 # Jules for Hugging Face - Main Entry Point
 
+import re
+import ast
 from .core.logic_engine import LogicEngine
+from .core.methodology_engine import MethodologyEngine
 from .tools.abstraction_layer import ToolAbstractionLayer
 from .tools.file_system_manager import FileSystemManager
 from .tools.git_client import GitClient
 from .tools.huggingface_client import HuggingFaceClient
-from .core.state_manager import StateManager
-import os
+
+class JulesHF:
+    """
+    The main application class for Jules for Hugging Face.
+    """
+    def __init__(self):
+        self.logic_engine = LogicEngine()
+        self.methodology_engine = MethodologyEngine()
+        self.tool_layer = ToolAbstractionLayer()
+        self._register_tools()
+
+    def _register_tools(self):
+        self.tool_layer.register_tool("file_system_manager", FileSystemManager)
+        self.tool_layer.register_tool("git_client", GitClient)
+        self.tool_layer.register_tool("huggingface_client", HuggingFaceClient)
+
+    def run(self):
+        print("Jules for Hugging Face - Running...")
+        current_task_info = self.methodology_engine.get_current_task()
+
+        print("\n--- Current Task ---")
+        task = current_task_info.get('task', {})
+        print(f"Task Title: {task.get('title')}")
+
+        user_input = "What is the next step for the current task?"
+        next_action = self.logic_engine.get_next_action(user_input, current_task_info)
+
+        print("\n--- Next Action ---")
+        print(next_action)
+        self._execute_action(next_action)
+
+    def _execute_action(self, action_string: str):
+        if not action_string.startswith("execute_tool"):
+            print(f"Action not executable: {action_string}")
+            return
+
+        match = re.search(r"execute_tool\('([^']*)',\s*({.*})\)", action_string)
+        if match:
+            tool_name, params_str = match.groups()
+            try:
+                params = ast.literal_eval(params_str)
+                result = self.tool_layer.execute_tool(tool_name, params)
+                print("\n--- Tool Execution Result ---")
+                print(result)
+            except (ValueError, SyntaxError) as e:
+                print(f"Error parsing parameters: {e}")
 
 def main():
     """
-    Main function for the Jules for Hugging Face application.
+    Main entry point for the application.
     """
-    print("Jules for Hugging Face - Initializing...")
-    tool_layer = ToolAbstractionLayer()
-    state_manager = StateManager()
-
-    # Register tools
-    tool_layer.register_tool("huggingface_client", HuggingFaceClient)
-
-    # --- Login to Hugging Face ---
-    print("--- Logging in to Hugging Face ---")
-    hf_token = os.getenv("HUGGING_FACE_TOKEN")
-    if not hf_token:
-        print("Error: HUGGING_FACE_TOKEN environment variable not set.")
-        return
-
-    login_params = {"operation": "login", "token": hf_token}
-    login_result = tool_layer.execute_tool("huggingface_client", login_params)
-    print(f"Login Result: {login_result}")
-    state_manager.update_state("I-2.2.1", "In Progress", f"Hugging Face login: {login_result}")
-
-
-    # --- Create a new repository ---
-    print("\n--- Creating a new repository on the Hub ---")
-    repo_id = "jules-test-repo-123" # A unique name for the test repo
-    create_repo_params = {"operation": "create_repo", "repo_id": repo_id}
-    create_repo_result = tool_layer.execute_tool("huggingface_client", create_repo_params)
-    print(f"Create Repo Result: {create_repo_result}")
-    state_manager.update_state("I-2.2.1", "Completed", f"Repo creation: {create_repo_result}")
-
+    app = JulesHF()
+    app.run()
 
 if __name__ == "__main__":
     main()
