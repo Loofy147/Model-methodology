@@ -4,7 +4,9 @@ import unittest
 import os
 import shutil
 import json
+from unittest.mock import patch
 from jules_hf.core.methodology_engine import MethodologyEngine
+from jules_hf.core.config import Config
 
 class TestMethodologyEngine(unittest.TestCase):
     """
@@ -13,10 +15,23 @@ class TestMethodologyEngine(unittest.TestCase):
 
     def setUp(self):
         """
-        Set up the test case with a temporary directory for user data.
+        Set up the test case with a temporary directory and a mocked config.
         """
         self.test_user_dir = "test_jules_hf"
         self.test_plan_filename = "test_plan.json"
+
+        # Mock the config to use our temporary test directory
+        self.config_patch = patch.object(Config, 'get')
+        self.mock_config_get = self.config_patch.start()
+
+        def mock_get(key, default=None):
+            if key == "user_data_dir":
+                return self.test_user_dir
+            if key == "plan_filename":
+                return self.test_plan_filename
+            return default
+
+        self.mock_config_get.side_effect = mock_get
 
         # Clean up any old test directories
         if os.path.exists(self.test_user_dir):
@@ -25,21 +40,22 @@ class TestMethodologyEngine(unittest.TestCase):
 
     def tearDown(self):
         """
-        Clean up the temporary test directory.
+        Clean up the temporary test directory and stop the patcher.
         """
+        self.config_patch.stop()
         shutil.rmtree(self.test_user_dir)
 
     def test_plan_copy_on_first_load(self):
         """
         Test that the default plan is copied to the user directory on first load.
         """
-        # Initialize the engine, which should trigger the copy
-        engine = MethodologyEngine(user_dir=self.test_user_dir, plan_filename="plan.json")
+        self.mock_config_get.side_effect = lambda key, default=None: {
+            "user_data_dir": self.test_user_dir,
+            "plan_filename": "plan.json"
+        }.get(key, default)
 
-        # Check that the plan file now exists in the user directory
+        engine = MethodologyEngine()
         self.assertTrue(os.path.exists(engine.plan_file_path))
-
-        # Check that the content is not empty and is valid JSON
         with open(engine.plan_file_path, 'r') as f:
             data = json.load(f)
         self.assertIn("project_name", data)
@@ -48,7 +64,6 @@ class TestMethodologyEngine(unittest.TestCase):
         """
         Test that the MethodologyEngine can correctly identify the current task from a custom plan.
         """
-        # Create a custom test plan file
         custom_plan_path = os.path.join(self.test_user_dir, self.test_plan_filename)
         custom_plan_data = {
             "project_name": "Test Project",
@@ -61,7 +76,7 @@ class TestMethodologyEngine(unittest.TestCase):
         with open(custom_plan_path, 'w') as f:
             json.dump(custom_plan_data, f)
 
-        engine = MethodologyEngine(user_dir=self.test_user_dir, plan_filename=self.test_plan_filename)
+        engine = MethodologyEngine()
         current_task_info = engine.get_current_task()
         self.assertEqual(current_task_info["task"]["id"], "T1")
 
@@ -69,19 +84,19 @@ class TestMethodologyEngine(unittest.TestCase):
         """
         Test that the MethodologyEngine can update a task's status and save the plan.
         """
-        # Initialize the engine, which will copy the default plan
-        engine = MethodologyEngine(user_dir=self.test_user_dir, plan_filename="plan.json")
+        self.mock_config_get.side_effect = lambda key, default=None: {
+            "user_data_dir": self.test_user_dir,
+            "plan_filename": "plan.json"
+        }.get(key, default)
 
-        # Get the ID of the first ready task
+        engine = MethodologyEngine()
         initial_task_info = engine.get_current_task()
         task_id_to_update = initial_task_info["task"]["id"]
 
-        # Update the status
         result = engine.update_task_status(task_id_to_update, "Completed")
         self.assertTrue(result)
 
-        # Verify the change by loading the plan again with a new engine instance
-        new_engine = MethodologyEngine(user_dir=self.test_user_dir, plan_filename="plan.json")
+        new_engine = MethodologyEngine()
         task_found = False
         for epic in new_engine.plan.get("epics", []):
             for milestone in epic.get("milestones", []):

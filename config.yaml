@@ -1,0 +1,13 @@
+# Jules for Hugging Face - Default Configuration
+
+# Directory for user-specific data, including the methodology plan
+user_data_dir: ".jules_hf"
+
+# Filename for the methodology plan
+plan_filename: "plan.json"
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "json"
+  file: "jules_hf.log"

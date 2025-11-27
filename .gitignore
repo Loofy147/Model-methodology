@@ -5,3 +5,6 @@ __pycache__/
 
 # User-writable plan directory
 .jules_hf/
+
+# Log files
+*.log
