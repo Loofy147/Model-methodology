@@ -1,7 +1,7 @@
 # Jules for Hugging Face - Main Entry Point
 
 from .core.logic_engine_v2 import LogicEngineV2
-from .core.llm_provider import MockLLMProvider
+from .core.llm_provider import HuggingFaceLLMProvider
 from .core.methodology_engine import MethodologyEngine
 from .tools.abstraction_layer import ToolAbstractionLayer
 from .tools.file_system_manager import FileSystemManager
@@ -20,13 +20,7 @@ class JulesHF:
     def __init__(self):
         logger.info("Initializing JulesHF application...")
 
-        # Using MockLLMProvider for now. This would be configurable in a real app.
-        mock_response = {
-            "action": "execute_tool",
-            "tool_name": "file_system_manager.create_file",
-            "parameters": {"file_path": "test_output.txt", "content": "Hello from LogicEngineV2!"}
-        }
-        llm_provider = MockLLMProvider(response=mock_response)
+        llm_provider = HuggingFaceLLMProvider()
 
         self.logic_engine = LogicEngineV2(llm_provider)
         self.methodology_engine = MethodologyEngine()
@@ -39,7 +33,7 @@ class JulesHF:
     def _register_tools(self):
         self.tool_layer.register_tool("file_system_manager", FileSystemManager)
         self.tool_layer.register_tool("git_client", GitClient)
-        # self.tool_layer.register_tool("huggingface_client", HuggingFaceClient) # Mocked for now
+        self.tool_layer.register_tool("huggingface_client", HuggingFaceClient)
         logger.debug("All tools registered.")
 
     def run(self):

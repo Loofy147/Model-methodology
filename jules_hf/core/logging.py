@@ -20,7 +20,7 @@ class JsonFormatter(logging.Formatter):
 
         # Add extra context if available
         if hasattr(record, 'extra_context'):
-            log_record.update(record.extra_context)
+            log_record['extra_context'] = record.extra_context
 
         return json.dumps(log_record)
 
