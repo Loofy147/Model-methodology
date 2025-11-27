@@ -17,6 +17,7 @@ class MethodologyEngine:
     def __init__(self):
         """
         Initializes the MethodologyEngine.
+        Sets up a user-writable directory for the plan if it doesn't exist.
         """
         logger.info("Initializing MethodologyEngine...")
         user_dir = config.get("user_data_dir", ".jules_hf")
