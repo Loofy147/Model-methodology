@@ -1,66 +1,120 @@
 # Jules for Hugging Face - Main Entry Point
 
-import re
-import ast
-from .core.logic_engine import LogicEngine
+from .core.logic_engine_v2 import LogicEngineV2
+from .core.llm_provider import HuggingFaceLLMProvider
 from .core.methodology_engine import MethodologyEngine
 from .tools.abstraction_layer import ToolAbstractionLayer
 from .tools.file_system_manager import FileSystemManager
 from .tools.git_client import GitClient
 from .tools.huggingface_client import HuggingFaceClient
+from .core.logging import setup_logging, get_logger
+from .core.exceptions import ToolExecutionError, LLMError
+
+# Initialize logger for this module
+logger = get_logger(__name__)
 
 class JulesHF:
     """
     The main application class for Jules for Hugging Face.
     """
     def __init__(self):
-        self.logic_engine = LogicEngine()
+        logger.info("Initializing JulesHF application...")
+
+        llm_provider = HuggingFaceLLMProvider()
+
+        self.logic_engine = LogicEngineV2(llm_provider)
         self.methodology_engine = MethodologyEngine()
         self.tool_layer = ToolAbstractionLayer()
+        self.short_term_memory = []
+
         self._register_tools()
+        logger.info("JulesHF application initialized successfully.")
 
     def _register_tools(self):
         self.tool_layer.register_tool("file_system_manager", FileSystemManager)
         self.tool_layer.register_tool("git_client", GitClient)
         self.tool_layer.register_tool("huggingface_client", HuggingFaceClient)
+        logger.debug("All tools registered.")
 
     def run(self):
-        print("Jules for Hugging Face - Running...")
+        logger.info("JulesHF run started.")
+
         current_task_info = self.methodology_engine.get_current_task()
-
-        print("\n--- Current Task ---")
         task = current_task_info.get('task', {})
-        print(f"Task Title: {task.get('title')}")
+        logger.info("Current task retrieved.", extra={'extra_context': {'task_id': task.get('id'), 'task_title': task.get('title')}})
 
-        user_input = "What is the next step for the current task?"
-        next_action = self.logic_engine.get_next_action(user_input, current_task_info)
+        # The main loop would be more sophisticated in a real agent
+        self._run_single_turn()
 
-        print("\n--- Next Action ---")
-        print(next_action)
-        self._execute_action(next_action)
+        logger.info("JulesHF run finished.")
 
-    def _execute_action(self, action_string: str):
-        if not action_string.startswith("execute_tool"):
-            print(f"Action not executable: {action_string}")
-            return
+    def _run_single_turn(self):
+        """
+        Runs a single turn of the agent's thought-action loop.
+        """
+        state = self._build_current_state()
 
-        match = re.search(r"execute_tool\('([^']*)',\s*({.*})\)", action_string)
-        if match:
-            tool_name, params_str = match.groups()
-            try:
-                params = ast.literal_eval(params_str)
-                result = self.tool_layer.execute_tool(tool_name, params)
-                print("\n--- Tool Execution Result ---")
-                print(result)
-            except (ValueError, SyntaxError) as e:
-                print(f"Error parsing parameters: {e}")
+        try:
+            action = self.logic_engine.get_next_action(state)
+            self._execute_action(action)
+        except (ToolExecutionError, LLMError) as e:
+            logger.error(f"A recoverable error occurred: {e}", exc_info=True)
+            # In a real agent, we might add this error to memory and retry
+        except Exception as e:
+            logger.critical(f"An unrecoverable error occurred: {e}", exc_info=True)
+
+    def _build_current_state(self) -> dict:
+        """
+        Constructs the current state dictionary to be passed to the LogicEngine.
+        """
+        return {
+            "current_task": self.methodology_engine.get_current_task().get('task', {}),
+            "available_tools": self.tool_layer.get_tools(), # In a real system, this would be more dynamic
+            "short_term_memory": self.short_term_memory
+        }
+
+    def _execute_action(self, action: dict):
+        action_type = action.get("action")
+        logger.info(f"Executing action: {action_type}", extra={'extra_context': {'action': action}})
+
+        if action_type == "execute_tool":
+            tool_name = action.get("tool_name")
+            parameters = action.get("parameters")
+            result = self.tool_layer.execute_tool(tool_name, parameters)
+
+            # Update memory with the result
+            self.short_term_memory.append({"role": "assistant", "action": action})
+            self.short_term_memory.append({"role": "system", "observation": result})
+
+        elif action_type == "ask_user":
+            question = action.get("question")
+            logger.info(f"Asking user: {question}")
+            # In a real app, this would pause and wait for user input
+
+        elif action_type == "complete_task":
+            message = action.get("final_message")
+            logger.info(f"Task completed with message: {message}")
+            # Here you would update the methodology engine
+            # self.methodology_engine.update_task_status(...)
+
+        else:
+            logger.error(f"Unknown action type: {action_type}")
+
 
 def main():
     """
     Main entry point for the application.
     """
-    app = JulesHF()
-    app.run()
+    setup_logging()
+
+    logger.info("Application starting...")
+    try:
+        app = JulesHF()
+        app.run()
+    except Exception as e:
+        logger.critical(f"An unhandled exception caused the application to terminate: {e}", exc_info=True)
+    finally:
+        logger.info("Application finished.")
 
 if __name__ == "__main__":
     main()

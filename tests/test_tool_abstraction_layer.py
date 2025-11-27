@@ -2,6 +2,7 @@
 
 import unittest
 from jules_hf.tools.abstraction_layer import ToolAbstractionLayer
+from jules_hf.core.exceptions import ToolExecutionError
 
 class MockTool:
     def run(self, parameters):
@@ -34,13 +35,23 @@ class TestToolAbstractionLayer(unittest.TestCase):
         actual_result = self.tal.execute_tool("mock_tool", params)
         self.assertEqual(actual_result, expected_result)
 
-    def test_execute_tool_not_found(self):
+    def test_execute_tool_not_found_raises_exception(self):
         """
-        Test that the ToolAbstractionLayer returns an error when a tool is not found.
+        Test that executing a non-existent tool raises a ToolExecutionError.
         """
-        expected_result = "Error: Tool 'non_existent_tool' not found."
-        actual_result = self.tal.execute_tool("non_existent_tool", {})
-        self.assertEqual(actual_result, expected_result)
+        with self.assertRaises(ToolExecutionError):
+            self.tal.execute_tool("non_existent_tool", {})
+
+class MockToolWithoutRun:
+    pass
+
+    def test_tool_without_run_method_raises_exception(self):
+        """
+        Test that a tool without a 'run' method raises a ToolExecutionError.
+        """
+        self.tal.register_tool("bad_tool", MockToolWithoutRun)
+        with self.assertRaises(ToolExecutionError):
+            self.tal.execute_tool("bad_tool", {})
 
 if __name__ == '__main__':
     unittest.main()
